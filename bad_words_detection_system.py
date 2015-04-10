@@ -7,9 +7,14 @@ the it uses K-means algorithm to determin them.
 
 >>> from bad_words_detection_system import *
 >>> edits = [Edit(1, {'one':1, 'two': 2}, False), Edit(2, {'three':3}, True)]
->>> db = Database('BWDS', 'amir')
+>>> db = Database('amirbwds')
+>>> bot = Bot(db)
+>>> bot.parse_edits(edits)
 """
 import psycopg2
+import getpass
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+
 
 class Edit(object):
     def __init__(self, rev_id, added_words, reverted):
@@ -20,19 +25,29 @@ class Edit(object):
 
 class Database(object):
     """Database"""
-    def __init__(self, dbname, dbuser):
-        self.dbname = dbname
+    def __init__(self, dbuser):
+        self.dbname = 'postgres'
         self.dbuser = dbuser
+        self.password = getpass.getpass()
         self.initiate_database()
 
     def initiate_database(self):
+        self.execute('DROP DATABASE bwds;')
         self.execute('CREATE DATABASE bwds;')
+        self.dbname = 'bwds'
         self.execute('CREATE TABLE words (id serial PRIMARY KEY, term varchar, no_documents integer);')
 
-    def execute(self, command, return_result=None):
-        conn = psycopg2.connect('dbname=%s user=%s' % (self.dbname, self.dbuser))
+    # TODO: Use args and kwargs
+    def execute(self, command, return_result=None, extra=None):
+        conn = psycopg2.connect(database=self.dbname, user=self.dbuser,
+                                host='localhost', password=self.password)
+        if self.dbname == 'postgres':
+            conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
         cur = conn.cursor()
-        cur.execute(command)
+        if extra:
+            cur.execute(command, extra)
+        else:
+            cur.execute(command)
         if return_result:
             res = cur.fetchall()
         else:
@@ -44,16 +59,16 @@ class Database(object):
 
 
 class Bot(object):
-    
+
     def __init__(self, db):
         self.db = db
 
     def parse_edits(self, edits):
+        self.bad_edits = Edit(-1, {}, True)
         for edit in edits:
             for word in edit.added_words:
-                bad_edits = Edit(-1, {}, True)
                 if not edit.reverted:
-                    db.execute('INSERT INTO test (term, no_documents) VALUES (%s, %s)', (word, 1))
+                    self.db.execute("INSERT INTO words (term, no_documents) VALUES (%s, %s)", extra=(word, 1))
                 else:
-                    bad_edits.added_words[word] = bad_edits.added_words.get(word, 0) + edit.added_words[word]
-        print db.execute('SELECT * FROM words;', True)
+                    self.bad_edits.added_words[word] = bad_edits.added_words.get(word, 0) + edit.added_words[word]
+        print self.db.execute("SELECT * FROM words;", return_result=True)
