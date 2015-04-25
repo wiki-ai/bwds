@@ -16,13 +16,17 @@ import re
 
 from bad_words_detection_system import Edit, Bot
 
-tokenizer = RegexpTokenizer(
-    '[a-zA-ZÃ¡Ã Ã¢Ã£Ã§Ã©ÃªÃ­Ã³Ã´ÃµÃºÃ¼ÃÃ€Ã‚ÃƒÃ‡Ã‰ÃŠÃÃ“Ã”Ã•Ãš]{3,}')
 stemmer = SnowballStemmer('portuguese')
 cache = {}
 
-
-def page_info(dump, stemming=False):
+chars = {
+    'az': u'A-Za-zÇçƏəĞğıİÖöŞşÜü',
+    'en': u'A-Za-z',
+    'pt': u'A-Za-záàâãçéêíóôõúüÁÀÂÃÇÉÊÍÓÔÕÚ',
+    'tr': u'A-Za-zÇĞİÖŞÜçğıöşü',
+    'fa': u'ابپتثجچحخدذرزژسشصآضطظعغفقکگلمنوهی',
+}
+def page_info(dump, lang, stemming=False):
     global tokenizer, stemmer
     c = 1
     di_old = []
@@ -45,10 +49,8 @@ def page_info(dump, stemming=False):
         detector = reverts.Detector(radius=3)
         for revision in di_old:
             stems = set()
-            gen = tokenizer.tokenize(revision.text)
-            if not stemming:
-                gen = re.split(r'\s', revision.text)
-            for w in gen:
+            tokenizer = RegexpTokenizer(r'[%s]{3,}' % chars[lang])
+            for w in tokenizer.tokenize(revision.text):
                 if stemming:
                     if len(w) < 3:
                         continue
@@ -79,13 +81,15 @@ def page_info(dump, stemming=False):
 
 def run(dumps):
     print(dumps[0])
+    lang = dumps[0].split('wiki')[0]
     dump = xmlreader.XmlDump(dumps[0], True)
     bot = Bot()
-    for case in page_info(dump):
+    for case in page_info(dump, lang):
         bot.parse_edits(case.values())
         #print(case)
         #return
-    bot.parse_bad_edits(20)
+    bot.parse_bad_edits(100)
+    bot.dump()
 
 if __name__ == "__main__":
     dumps = sys.argv[1:]
