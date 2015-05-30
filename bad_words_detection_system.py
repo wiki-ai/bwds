@@ -112,7 +112,6 @@ class Bot(object):
         for word in self.possible_bad_words:
             if self.possible_bad_words[word] >= lim:
                 res[word] = self.possible_bad_words[word]
-                # print(word, self.possible_bad_words[word])
         res = OrderedDict(sorted(res.items(), key=lambda t: t[1], reverse=True))
         for word in res:
             print(word, res[word])
