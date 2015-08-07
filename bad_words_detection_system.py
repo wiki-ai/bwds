@@ -26,6 +26,7 @@ import sys
 import traceback
 import json
 import codecs
+import time
 from importlib import import_module
 from collections import OrderedDict
 # TODO: User argparse
@@ -34,8 +35,8 @@ from collections import OrderedDict
 from mw import api
 from mw.lib import reverts
 
-from revscoring.extractors import APIExtractor
-from revscoring.datasources import diff
+#from revscoring.extractors import APIExtractor
+#from revscoring.datasources import diff
 
 
 class Edit(object):
@@ -59,6 +60,8 @@ class Bot(object):
         self.bad_edits = Edit(-1, {}, True)
         self.counter = 0
         self.words_db = {}
+        self.bad_words_db = {}
+        self.bad_counter = 0
         if bool(bad_words_cache) != bool(words_cache):
             raise "You should define both"
         if words_cache:
@@ -84,25 +87,34 @@ class Bot(object):
                     self.bad_edits.added_words[word] = \
                         self.bad_edits.added_words.get(word, 0) + \
                         edit.added_words[word]
+                    self.bad_words_db[word] = self.bad_words_db.get(word, 0) + 1
+                self.bad_counter += 1
                 continue
             for word in edit.added_words:
                 self.words_db[word] = self.words_db.get(word, 0) + 1
 
     def parse_bad_edits(self, numbers_to_show=10):
         self.possible_bad_words = {}
+        #self.possible_bad_words2 = {}
+        self.stop_words = {}
         if not self.cache:
             self.counter += 1
         for word in self.bad_edits.added_words:
             if not self.cache:
                 self.words_db[word] = self.words_db.get(word, 0) + 1
             self.possible_bad_words[word] = self.tf_idf(word)
+            self.stop_words[word] = self.idf(word)
         if numbers_to_show:
             self.show_results(numbers_to_show)
+            self.show_results2(numbers_to_show)
 
     def tf_idf(self, word):
         tf = math.log(self.bad_edits.added_words[word]) + 1
         idf = math.log(float(self.counter)/self.words_db[word])
         return tf*idf
+
+    def idf(self, word):
+        return math.log(float(self.counter)/self.words_db[word])
 
     def show_results(self, numbers_to_show):
         print("Showing %d results" % numbers_to_show)
@@ -113,8 +125,32 @@ class Bot(object):
             if self.possible_bad_words[word] >= lim:
                 res[word] = self.possible_bad_words[word]
         res = OrderedDict(sorted(res.items(), key=lambda t: t[1], reverse=True))
+        res_text = []
         for word in res:
-            print(word, res[word])
+            res_text.append(word)
+        res_text.sort()
+        res_text = "#" + '\n#'.join(res_text)
+        self.bad_words_res_text = res_text
+        with codecs.open('/data/project/dexbot/pywikibot-core/something_%s.txt' % time.time(), 'w', 'utf-8') as f:
+            f.write(res_text)
+
+    def show_results2(self, numbers_to_show):
+        print("Showing another %d results" % numbers_to_show)
+        values = sorted(self.stop_words.values(), reverse=True)
+        lim = values[numbers_to_show*-1]
+        res = {}
+        for word in self.stop_words:
+            if self.stop_words[word] <= lim:
+                res[word] = self.stop_words[word]
+        res = OrderedDict(sorted(res.items(), key=lambda t: t[1]))
+        res_text = []
+        for word in res:
+            res_text.append(word)
+        res_text.sort()
+        res_text = "#" + '\n#'.join(res_text)
+        self.stop_words_res_text = res_text
+        with codecs.open('/data/project/dexbot/pywikibot-core/something2_%s.txt' % time.time(), 'w', 'utf-8') as f:
+            f.write(res_text)
 
     def dump(self):
         new_db = {}
@@ -173,8 +209,8 @@ def handle_args():
 
 def bot_gen(rev_pages, language, api_url):
 
-    session = api.Session(api_url)
-    extractor = APIExtractor(session, language=language)
+    #session = api.Session(api_url)
+    #extractor = APIExtractor(session, language=language)
 
     for rev_id, page_id in rev_pages:
         sys.stderr.write(".")

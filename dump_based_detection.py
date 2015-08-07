@@ -12,6 +12,7 @@ from nltk.stem.snowball import SnowballStemmer
 import sys
 from mw.lib import reverts
 from pywikibot import xmlreader
+import pywikibot
 import re
 
 from bad_words_detection_system import Edit, Bot
@@ -21,20 +22,28 @@ cache = {}
 
 chars = {
     'az': u'A-Za-zÇçƏəĞğıİÖöŞşÜü',
-    'de': u'A-Za-zÄäÖöÜüß',
+    'ar': u'غظضذخثتشرقصفعسنملكيطحزوهدجبا',
+    'et': u'A-Za-zŠšŽžÕõÄäÖöÜü',
+    'af': u'A-Za-züûöôïîëêè',
     'en': u'A-Za-z',
-    'fa': u'ابپتثجچحخدذرزژسشصآضطظعغفقکگلمنوهی',
-    'fr': u'A-Za-zÀàÂâÆæÄäÇçÉéÈèÊêËëÎîÏïÔôŒœÖöÙùÛûÜüŸÿ',
+    'id': u'A-Za-z',
     'pt': u'A-Za-záàâãçéêíóôõúüÁÀÂÃÇÉÊÍÓÔÕÚ',
     'tr': u'A-Za-zÇĞİÖŞÜçğıöşü',
+    'fa': u'ابپتثجچحخدذرزژسشصآضطظعغفقکگلمنوهی‌يك',
+    'fr': u'A-Za-zÀàÂâÆæÄäÇçÉéÈèÊêËëÎîÏïÔôŒœÖöÙùÛûÜüŸÿ',
+    'de': u'A-Za-zÄäÖöÜüß',
+    'es': u'A-Za-zÑñéÉüÜóÓ',
+    'uk': u'АаБбВвГгҐґДдЕеЄєЖжЗзИиІіЇїЙйКкЛлМмНнОоПпРрСсТтУуФфХхЦцЧчШшЩщЬьЮюЯя',
+    'pl': u'AaĄąBbCcĆćDdEeĘęFfGgHhIiJjKkLlŁłMmNnŃńOoÓóPpRrSsŚśTtUuWwYyZzŹźŻż',
+    'he': u'למנסעפצקרשתםןףץאבגדהוזחטיכך',
+    'hy': u'ԱաԲբԳգԴդԵեԶզԷէԸըԹթԺժԻիԼլԽխԾծԿկՀհՁձՂղՃճՄմՅյՆնՇշՈոՉչՊպՋջՌռՍսՎվՏտՐրՑցՈՒՈւուՒւՓփՔքևևՕօՖֆ',
+    'vi': u'AaĂăÂâBbCcDdĐđEeÊêGgHhIiKkLlMmNnOoÔôƠơPpQqRrSsTtUuƯưVvXxYy',
 }
 
 def lower(a, lang):
     if lang == 'tr':
        return a.replace('I', u'ı').replace(u'İ','i').lower()
     return a.lower()
-
-
 def page_info(dump, lang, stemming=False):
     global tokenizer, stemmer
     c = 1
@@ -59,7 +68,7 @@ def page_info(dump, lang, stemming=False):
         detector = reverts.Detector(radius=3)
         for revision in di_old:
             stems = set()
-            tokenizer = RegexpTokenizer(r'[%s]{3,}' % chars[lang])
+            tokenizer = RegexpTokenizer(r'[%s]{3,}' % chars.get(lang, chars['en']))
             for w in tokenizer.tokenize(revision.text):
                 if stemming:
                     if len(w) < 3:
@@ -92,18 +101,39 @@ def page_info(dump, lang, stemming=False):
 def run(dumps):
     number = 0
     counter = 0
-    bot = Bot()
     for casee in dumps:
         lang = casee.split('/')[-1].split('wiki')[0]
         dump = xmlreader.XmlDump(casee, True)
+        bot = Bot()
         for case in page_info(dump, lang):
             counter += 1
             if number and counter > number:
                 break
             bot.parse_edits(case.values())
+        #print(case)
+        #return
     bot.parse_bad_edits(250)
     bot.dump()
-
+    site = pywikibot.Site('meta', fam='meta')
+    page = pywikibot.Page(site, 'Research:Revision scoring as a service/Word lists/' + lang)
+    try:
+        text = page.get()
+    except:
+        return False
+    new_text = text
+    if re.search(r'\|\s*?list\-generated\s*?\=\s*?', text):
+        if re.search(r'\|\s*?list\-generated\s*?\=\s*?(\||\}\})', text):
+            new_text = re.sub(r'(\|\s*?list\-generated\s*?\=\s*?)(\||\}\})', r'\1%s\2' % bot.bad_words_res_text, new_text)
+    else:
+        new_text = re.sub(r'\}\}', r'|list-generated=%s\n}}' % bot.bad_words_res_text, new_text)
+    if re.search(r'\|\s*?list\-stop\s*?\=\s*?', text):
+        if re.search(r'\|\s*?list\-stop\s*?\=\s*?(\||\}\})', text):
+            new_text = re.sub(r'(\|\s*?list\-stop\s*?\=\s*?)(\||\}\})', r'\1%s\2' % bot.stop_words_res_text, new_text)
+    else:
+        new_text = re.sub(r'\}\}', r'|list-stop=%s\n}}' % bot.stop_words_res_text, new_text)
+    if new_text != text:
+        page.text = new_text
+        page.save('Bot: update results')
 if __name__ == "__main__":
     dumps = sys.argv[1:]
     run(dumps)
