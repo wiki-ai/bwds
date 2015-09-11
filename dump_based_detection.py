@@ -19,6 +19,22 @@ from bad_words_detection_system import Edit, Bot
 
 stemmer = SnowballStemmer('portuguese')
 cache = {}
+cjk = (
+    r'\u4E00-\u62FF' +  # Unified Ideographs
+    r'\u6300-\u77FF' +
+    r'\u7800-\u8CFF' +
+    r'\u8D00-\u9FCC' +
+    r'\u3400-\u4DFF' +  # Unified Ideographs Ext A
+    r'\U00020000-\U000215FF' +  # Unified Ideographs Ext. B
+    r'\U00021600-\U000230FF' +
+    r'\U00023100-\U000245FF' +
+    r'\U00024600-\U000260FF' +
+    r'\U00026100-\U000275FF' +
+    r'\U00027600-\U000290FF' +
+    r'\U00029100-\U0002A6DF' +
+    r'\uF900-\uFAFF' +  # Compatibility Ideographs
+    r'\U0002F800-\U0002FA1F'  # Compatibility Ideographs Suppl.
+)
 
 chars = {
     'az': u'A-Za-zÇçƏəĞğıİÖöŞşÜü',
@@ -27,23 +43,31 @@ chars = {
     'af': u'A-Za-züûöôïîëêè',
     'en': u'A-Za-z',
     'id': u'A-Za-z',
+    'ko': cjk,
+    'zh': cjk,
+    'ja': cjk,
     'pt': u'A-Za-záàâãçéêíóôõúüÁÀÂÃÇÉÊÍÓÔÕÚ',
     'tr': u'A-Za-zÇĞİÖŞÜçğıöşü',
     'fa': u'ابپتثجچحخدذرزژسشصآضطظعغفقکگلمنوهی‌يك',
     'fr': u'A-Za-zÀàÂâÆæÄäÇçÉéÈèÊêËëÎîÏïÔôŒœÖöÙùÛûÜüŸÿ',
     'de': u'A-Za-zÄäÖöÜüß',
     'es': u'A-Za-zÑñéÉüÜóÓ',
-    'uk': u'АаБбВвГгҐґДдЕеЄєЖжЗзИиІіЇїЙйКкЛлМмНнОоПпРрСсТтУуФфХхЦцЧчШшЩщЬьЮюЯя',
+    'uk': u'АаБбВвГгҐґДдЕеЄєЖжЗзИиІіЇїЙйКкЛлМмНнОоПпРрСсТтУуФфХхЦцЧчШшЩщЬьЮю'
+          u'Яя',
     'pl': u'AaĄąBbCcĆćDdEeĘęFfGgHhIiJjKkLlŁłMmNnŃńOoÓóPpRrSsŚśTtUuWwYyZzŹźŻż',
     'he': u'למנסעפצקרשתםןףץאבגדהוזחטיכך',
-    'hy': u'ԱաԲբԳգԴդԵեԶզԷէԸըԹթԺժԻիԼլԽխԾծԿկՀհՁձՂղՃճՄմՅյՆնՇշՈոՉչՊպՋջՌռՍսՎվՏտՐրՑցՈՒՈւուՒւՓփՔքևևՕօՖֆ',
+    'hy': u'ԱաԲբԳգԴդԵեԶզԷէԸըԹթԺժԻիԼլԽխԾծԿկՀհՁձՂղՃճՄմՅյՆնՇշՈոՉչՊպՋջՌռՍսՎվՏտՐրՑ'
+          u'ցՈՒՈւուՒւՓփՔքևևՕօՖֆ',
     'vi': u'AaĂăÂâBbCcDdĐđEeÊêGgHhIiKkLlMmNnOoÔôƠơPpQqRrSsTtUuƯưVvXxYy',
 }
 
+
 def lower(a, lang):
     if lang == 'tr':
-       return a.replace('I', u'ı').replace(u'İ','i').lower()
+        return a.replace('I', u'ı').replace(u'İ', 'i').lower()
     return a.lower()
+
+
 def page_info(dump, lang, stemming=False):
     global tokenizer, stemmer
     c = 1
@@ -67,8 +91,11 @@ def page_info(dump, lang, stemming=False):
         history = {}
         detector = reverts.Detector(radius=3)
         for revision in di_old:
+            revision.text = pywikibot.textlib.removeLanguageLinks(
+                revision.text)
             stems = set()
-            tokenizer = RegexpTokenizer(r'[%s]{3,}' % chars.get(lang, chars['en']))
+            tokenizer = RegexpTokenizer(r'[%s]{3,}' %
+                                        chars.get(lang, chars['en']))
             for w in tokenizer.tokenize(revision.text):
                 if stemming:
                     if len(w) < 3:
@@ -110,12 +137,12 @@ def run(dumps):
             if number and counter > number:
                 break
             bot.parse_edits(case.values())
-        #print(case)
-        #return
+
     bot.parse_bad_edits(250)
     bot.dump()
     site = pywikibot.Site('meta', fam='meta')
-    page = pywikibot.Page(site, 'Research:Revision scoring as a service/Word lists/' + lang)
+    prefix = 'Research:Revision scoring as a service/Word lists/'
+    page = pywikibot.Page(site, prefix + lang)
     try:
         text = page.get()
     except:
@@ -123,14 +150,18 @@ def run(dumps):
     new_text = text
     if re.search(r'\|\s*?list\-generated\s*?\=\s*?', text):
         if re.search(r'\|\s*?list\-generated\s*?\=\s*?(\||\}\})', text):
-            new_text = re.sub(r'(\|\s*?list\-generated\s*?\=\s*?)(\||\}\})', r'\1%s\2' % bot.bad_words_res_text, new_text)
+            new_text = re.sub(r'(\|\s*?list\-generated\s*?\=\s*?)(\||\}\})',
+                              r'\1%s\2' % bot.bad_words_res_text, new_text)
     else:
-        new_text = re.sub(r'\}\}', r'|list-generated=%s\n}}' % bot.bad_words_res_text, new_text)
+        new_text = re.sub(r'\}\}', r'|list-generated=%s\n}}' %
+                          bot.bad_words_res_text, new_text)
     if re.search(r'\|\s*?list\-stop\s*?\=\s*?', text):
         if re.search(r'\|\s*?list\-stop\s*?\=\s*?(\||\}\})', text):
-            new_text = re.sub(r'(\|\s*?list\-stop\s*?\=\s*?)(\||\}\})', r'\1%s\2' % bot.stop_words_res_text, new_text)
+            new_text = re.sub(r'(\|\s*?list\-stop\s*?\=\s*?)(\||\}\})',
+                              r'\1%s\2' % bot.stop_words_res_text, new_text)
     else:
-        new_text = re.sub(r'\}\}', r'|list-stop=%s\n}}' % bot.stop_words_res_text, new_text)
+        new_text = re.sub(r'\}\}', r'|list-stop=%s\n}}'
+                          % bot.stop_words_res_text, new_text)
     if new_text != text:
         page.text = new_text
         page.save('Bot: update results')
