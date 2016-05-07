@@ -9,7 +9,8 @@ Some parts are copied from
 https://github.com/halfak/Objective-Revision-Evaluation-Service/blob/master/ores/label_reverted.py
 
 >>> from bad_words_detection_system import *
->>> edits = [Edit(1, {'one':1, 'two': 2}, False), Edit(2, {'three':3}, True), Edit(3, {'one':5, 'four': 1}, False)]
+>>> edits = [Edit(1, {'one':1, 'two': 2}, False), Edit(2, {'three':3}, True),
+...          Edit(3, {'one':5, 'four': 1}, False)]
 >>> bot = Bot()
 >>> bot.parse_edits(edits)
 >>> bot.parse_bad_edits()
@@ -25,18 +26,18 @@ import math
 import sys
 import traceback
 import json
-import codecs
 import time
 from importlib import import_module
 from collections import OrderedDict
 # TODO: User argparse
-# import argparse
+
+from revscoring.extractors import APIExtractor
+from revscoring.datasources import diff
 
 from mw import api
 from mw.lib import reverts
 
-#from revscoring.extractors import APIExtractor
-#from revscoring.datasources import diff
+base_file_path = '/data/project/dexbot/pywikibot-core/something_'
 
 
 class Edit(object):
@@ -71,23 +72,24 @@ class Bot(object):
             self.cache = False
 
     def initiate_cache(self, words_cache, bad_words_cache, no_docs):
-        with codecs.open(words_cache, 'r', 'utf-8') as f:
+        with open(words_cache, 'r') as f:
             self.words_db = json.loads(f.read())
-        with codecs.open(bad_words_cache, 'r', 'utf-8') as f:
+        with open(bad_words_cache, 'r') as f:
             self.bad_edits.added_words = json.loads(f.read())
-        with codecs.open(no_docs, 'r', 'utf-8') as f:
+        with open(no_docs, 'r') as f:
             self.counter = int(f.read())
 
     def parse_edits(self, edits):
         for edit in edits:
-            #Since edits can be gen and len doesn't mean there
+            # Since edits can be gen and len doesn't mean there
             self.counter += 1
             if edit.reverted:
                 for word in edit.added_words:
                     self.bad_edits.added_words[word] = \
                         self.bad_edits.added_words.get(word, 0) + \
                         edit.added_words[word]
-                    self.bad_words_db[word] = self.bad_words_db.get(word, 0) + 1
+                    self.bad_words_db[word] = (
+                        self.bad_words_db.get(word, 0) + 1)
                 self.bad_counter += 1
                 continue
             for word in edit.added_words:
@@ -95,13 +97,14 @@ class Bot(object):
 
     def parse_bad_edits(self, numbers_to_show=10):
         self.possible_bad_words = {}
-        #self.possible_bad_words2 = {}
         self.stop_words = {}
         if not self.cache:
             self.counter += 1
         for word in self.bad_edits.added_words:
             if not self.cache:
                 self.words_db[word] = self.words_db.get(word, 0) + 1
+            if 'sh' in word or 'ch' in word:
+                continue
             self.possible_bad_words[word] = self.tf_idf(word)
             self.stop_words[word] = self.idf(word)
         if numbers_to_show:
@@ -124,14 +127,15 @@ class Bot(object):
         for word in self.possible_bad_words:
             if self.possible_bad_words[word] >= lim:
                 res[word] = self.possible_bad_words[word]
-        res = OrderedDict(sorted(res.items(), key=lambda t: t[1], reverse=True))
+        res = OrderedDict(
+            sorted(res.items(), key=lambda t: t[1], reverse=True))
         res_text = []
         for word in res:
             res_text.append(word)
         res_text.sort()
         res_text = "#" + '\n#'.join(res_text)
         self.bad_words_res_text = res_text
-        with codecs.open('/data/project/dexbot/pywikibot-core/something_%s.txt' % time.time(), 'w', 'utf-8') as f:
+        with open('%s_%s.txt' % (base_file_path, time.time()), 'w') as f:
             f.write(res_text)
 
     def show_results2(self, numbers_to_show):
@@ -149,18 +153,18 @@ class Bot(object):
         res_text.sort()
         res_text = "#" + '\n#'.join(res_text)
         self.stop_words_res_text = res_text
-        with codecs.open('/data/project/dexbot/pywikibot-core/something2_%s.txt' % time.time(), 'w', 'utf-8') as f:
+        with open('%s2_%s.txt' % (base_file_path, time.time()), 'w') as f:
             f.write(res_text)
 
     def dump(self):
         new_db = {}
         for word in self.bad_edits.added_words:
             new_db[word] = self.words_db[word]
-        with codecs.open('words_db.txt', 'w', 'utf-8') as f:
+        with open('words_db.txt', 'w') as f:
             f.write(json.dumps(new_db))
-        with codecs.open('bad_edits_words.txt', 'w', 'utf-8') as f:
+        with open('bad_edits_words.txt', 'w') as f:
             f.write(json.dumps(self.bad_edits.added_words))
-        with codecs.open('no_docs.txt', 'w', 'utf-8') as f:
+        with open('no_docs.txt', 'w') as f:
             f.write(json.dumps(self.counter))
 
 
@@ -209,8 +213,8 @@ def handle_args():
 
 def bot_gen(rev_pages, language, api_url):
 
-    #session = api.Session(api_url)
-    #extractor = APIExtractor(session, language=language)
+    session = api.Session(api_url)
+    extractor = APIExtractor(session, language=language)
 
     for rev_id, page_id in rev_pages:
         sys.stderr.write(".")
