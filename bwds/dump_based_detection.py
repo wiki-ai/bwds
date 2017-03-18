@@ -7,50 +7,51 @@ Extermely under construction.
 Some parts are copied from
 https://gist.github.com/he7d3r/f99482f4f54f97895ccb/9205f3271fe8daa2f694f4ce3ba9b29213dbad6c
 """
-from nltk.tokenize import RegexpTokenizer
-import sys
-from mw.lib import reverts
-from pywikibot import xmlreader
-import pywikibot
 import re
+import sys
 import time
-import regex
 
-from bad_words_detection_system import Edit, Bot
+import regex
+from mw.lib import reverts
+from nltk.tokenize import RegexpTokenizer
+
+import pywikibot
+from bad_words_detection_system import Bot, Edit
+from pywikibot import xmlreader
 
 cache = {}
 
-languages_by_size = [
-            'en', 'sv', 'nl', 'de', 'fr', 'war', 'ru', 'ceb', 'it', 'es', 'vi',
-            'pl', 'ja', 'pt', 'zh', 'uk', 'ca', 'fa', 'no', 'sh', 'fi', 'ar',
-            'id', 'cs', 'sr', 'ro', 'ko', 'hu', 'ms', 'tr', 'min', 'eo', 'kk',
-            'eu', 'sk', 'da', 'bg', 'he', 'lt', 'hy', 'hr', 'sl', 'et', 'uz',
-            'gl', 'nn', 'vo', 'la', 'simple', 'el', 'hi', 'az', 'th', 'ka',
-            'ce', 'oc', 'be', 'mk', 'mg', 'new', 'ur', 'tt', 'ta', 'pms', 'cy',
-            'tl', 'lv', 'bs', 'te', 'be-tarask', 'br', 'ht', 'sq', 'jv', 'lb',
-            'mr', 'is', 'ml', 'zh-yue', 'bn', 'af', 'ba', 'ga', 'pnb', 'cv',
-            'fy', 'lmo', 'tg', 'sco', 'my', 'yo', 'an', 'ky', 'sw', 'io', 'ne',
-            'gu', 'scn', 'bpy', 'nds', 'ku', 'ast', 'qu', 'als', 'su', 'pa',
-            'kn', 'ckb', 'ia', 'mn', 'nap', 'bug', 'arz', 'bat-smg', 'wa',
-            'zh-min-nan', 'am', 'map-bms', 'gd', 'yi', 'mzn', 'si', 'fo',
-            'bar', 'vec', 'nah', 'sah', 'os', 'sa', 'roa-tara', 'li', 'hsb',
-            'pam', 'mrj', 'mhr', 'se', 'mi', 'ilo', 'hif', 'bcl', 'gan', 'rue',
-            'ps', 'glk', 'nds-nl', 'bo', 'vls', 'diq', 'fiu-vro', 'bh', 'xmf',
-            'tk', 'gv', 'sc', 'co', 'csb', 'hak', 'km', 'kv', 'vep', 'zea',
-            'crh', 'zh-classical', 'frr', 'eml', 'ay', 'stq', 'udm', 'wuu',
-            'nrm', 'kw', 'rm', 'szl', 'so', 'koi', 'as', 'lad', 'fur', 'mt',
-            'dv', 'gn', 'dsb', 'ie', 'pcd', 'sd', 'lij', 'cbk-zam', 'cdo',
-            'ksh', 'ext', 'mwl', 'gag', 'ang', 'ug', 'ace', 'pi', 'pag', 'nv',
-            'lez', 'frp', 'sn', 'kab', 'ln', 'myv', 'pfl', 'xal', 'krc', 'haw',
-            'rw', 'pdc', 'kaa', 'to', 'kl', 'arc', 'nov', 'kbd', 'av', 'bxr',
-            'lo', 'bjn', 'ha', 'tet', 'tpi', 'na', 'pap', 'lbe', 'jbo', 'ty',
-            'mdf', 'roa-rup', 'wo', 'tyv', 'ig', 'srn', 'nso', 'kg', 'ab',
-            'ltg', 'zu', 'om', 'za', 'chy', 'cu', 'rmy', 'tw', 'tn', 'chr',
-            'mai', 'pih', 'got', 'xh', 'bi', 'sm', 'ss', 'rn', 'ki', 'pnt',
-            'bm', 'iu', 'ee', 'lg', 'ts', 'fj', 'ak', 'ik', 'st', 'sg', 'ff',
-            'dz', 'ny', 'ch', 'ti', 've', 'ks', 'tum', 'cr', 'gom', 'lrc',
-            'azb', 'or'
-        ]
+language_codes = [
+    'en', 'sv', 'nl', 'de', 'fr', 'war', 'ru', 'ceb', 'it', 'es', 'vi',
+    'pl', 'ja', 'pt', 'zh', 'uk', 'ca', 'fa', 'no', 'sh', 'fi', 'ar',
+    'id', 'cs', 'sr', 'ro', 'ko', 'hu', 'ms', 'tr', 'min', 'eo', 'kk',
+    'eu', 'sk', 'da', 'bg', 'he', 'lt', 'hy', 'hr', 'sl', 'et', 'uz',
+    'gl', 'nn', 'vo', 'la', 'simple', 'el', 'hi', 'az', 'th', 'ka',
+    'ce', 'oc', 'be', 'mk', 'mg', 'new', 'ur', 'tt', 'ta', 'pms', 'cy',
+    'tl', 'lv', 'bs', 'te', 'be-tarask', 'br', 'ht', 'sq', 'jv', 'lb',
+    'mr', 'is', 'ml', 'zh-yue', 'bn', 'af', 'ba', 'ga', 'pnb', 'cv',
+    'fy', 'lmo', 'tg', 'sco', 'my', 'yo', 'an', 'ky', 'sw', 'io', 'ne',
+    'gu', 'scn', 'bpy', 'nds', 'ku', 'ast', 'qu', 'als', 'su', 'pa',
+    'kn', 'ckb', 'ia', 'mn', 'nap', 'bug', 'arz', 'bat-smg', 'wa',
+    'zh-min-nan', 'am', 'map-bms', 'gd', 'yi', 'mzn', 'si', 'fo',
+    'bar', 'vec', 'nah', 'sah', 'os', 'sa', 'roa-tara', 'li', 'hsb',
+    'pam', 'mrj', 'mhr', 'se', 'mi', 'ilo', 'hif', 'bcl', 'gan', 'rue',
+    'ps', 'glk', 'nds-nl', 'bo', 'vls', 'diq', 'fiu-vro', 'bh', 'xmf',
+    'tk', 'gv', 'sc', 'co', 'csb', 'hak', 'km', 'kv', 'vep', 'zea',
+    'crh', 'zh-classical', 'frr', 'eml', 'ay', 'stq', 'udm', 'wuu',
+    'nrm', 'kw', 'rm', 'szl', 'so', 'koi', 'as', 'lad', 'fur', 'mt',
+    'dv', 'gn', 'dsb', 'ie', 'pcd', 'sd', 'lij', 'cbk-zam', 'cdo',
+    'ksh', 'ext', 'mwl', 'gag', 'ang', 'ug', 'ace', 'pi', 'pag', 'nv',
+    'lez', 'frp', 'sn', 'kab', 'ln', 'myv', 'pfl', 'xal', 'krc', 'haw',
+    'rw', 'pdc', 'kaa', 'to', 'kl', 'arc', 'nov', 'kbd', 'av', 'bxr',
+    'lo', 'bjn', 'ha', 'tet', 'tpi', 'na', 'pap', 'lbe', 'jbo', 'ty',
+    'mdf', 'roa-rup', 'wo', 'tyv', 'ig', 'srn', 'nso', 'kg', 'ab',
+    'ltg', 'zu', 'om', 'za', 'chy', 'cu', 'rmy', 'tw', 'tn', 'chr',
+    'mai', 'pih', 'got', 'xh', 'bi', 'sm', 'ss', 'rn', 'ki', 'pnt',
+    'bm', 'iu', 'ee', 'lg', 'ts', 'fj', 'ak', 'ik', 'st', 'sg', 'ff',
+    'dz', 'ny', 'ch', 'ti', 've', 'ks', 'tum', 'cr', 'gom', 'lrc',
+    'azb', 'or'
+]
 cjk = (
     r'\u4E00-\u62FF' +  # Unified Ideographs
     r'\u6300-\u77FF' +
